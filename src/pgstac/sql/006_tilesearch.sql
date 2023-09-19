@@ -3,6 +3,8 @@ SET SEARCH_PATH to pgstac, public;
 DROP FUNCTION IF EXISTS geometrysearch;
 CREATE OR REPLACE FUNCTION geometrysearch(
     IN geom geometry,
+    IN datetime_start timestamp,
+    IN datetime_end timestamp,
     IN queryhash text,
     IN fields jsonb DEFAULT NULL,
     IN _scanlimit int DEFAULT 10000,
@@ -53,7 +55,7 @@ BEGIN
     END IF;
 
     tilearea := st_area(geom);
-    _where := format('%s AND st_intersects(geometry, %L::geometry)', search._where, geom);
+    _where := format('%s AND datetime >= ''%s''::timestamptz AND end_datetime <= ''%s''::timestamptz AND st_intersects(geometry, %L::geometry)', search._where, datetime_start, datetime_end, geom);
 
 
     FOR query IN SELECT * FROM partition_queries(_where, search.orderby) LOOP
@@ -115,6 +117,8 @@ $$ LANGUAGE PLPGSQL;
 DROP FUNCTION IF EXISTS geojsonsearch;
 CREATE OR REPLACE FUNCTION geojsonsearch(
     IN geojson jsonb,
+    IN datetime_start timestamp,
+    IN datetime_end timestamp,
     IN queryhash text,
     IN fields jsonb DEFAULT NULL,
     IN _scanlimit int DEFAULT 10000,
@@ -125,6 +129,8 @@ CREATE OR REPLACE FUNCTION geojsonsearch(
 ) RETURNS jsonb AS $$
     SELECT * FROM geometrysearch(
         st_geomfromgeojson(geojson),
+        datetime_start,
+        datetime_end,
         queryhash,
         fields,
         _scanlimit,
@@ -140,6 +146,8 @@ CREATE OR REPLACE FUNCTION xyzsearch(
     IN _x int,
     IN _y int,
     IN _z int,
+    IN datetime_start timestamp,
+    IN datetime_end timestamp,
     IN queryhash text,
     IN fields jsonb DEFAULT NULL,
     IN _scanlimit int DEFAULT 10000,
@@ -150,6 +158,8 @@ CREATE OR REPLACE FUNCTION xyzsearch(
 ) RETURNS jsonb AS $$
     SELECT * FROM geometrysearch(
         st_transform(tileenvelope(_z, _x, _y), 4326),
+        datetime_start,
+        datetime_end,
         queryhash,
         fields,
         _scanlimit,
